@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Key, X, ShieldCheck, Sparkles, Check, Trash2, Eye, EyeOff, AlertCircle, ExternalLink } from 'lucide-react';
+import { Key, X, ShieldCheck, Sparkles, Check, Trash2, Eye, EyeOff, AlertCircle, ExternalLink, AlertTriangle } from 'lucide-react';
 import { getStoredApiKey, saveStoredApiKey, clearStoredApiKey } from '../services/gemini';
 
 export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
@@ -38,8 +38,8 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
       return;
     }
 
-    if (!trimmed.startsWith('AIzaSy')) {
-      setTestError('Invalid Key Format: Google AI Studio API keys start with "AIzaSy...". Please get a free key from aistudio.google.com.');
+    if (trimmed.startsWith('AQ')) {
+      setTestError('Invalid Key Type: This key starts with "AQ..." (Google Cloud Auth Token). Please paste your key starting with "AIzaSy..." from Google AI Studio.');
       setIsTesting(false);
       return;
     }
@@ -86,7 +86,8 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
     setIsTesting(false);
   };
 
-  const isConfigured = !!getStoredApiKey();
+  const isConfigured = !!getStoredApiKey() && !getStoredApiKey().startsWith('AQ');
+  const isAQKey = apiKey.trim().startsWith('AQ');
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -104,7 +105,7 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -127,23 +128,46 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
             </span>
           </div>
 
+          {/* Warning Banner if old AQ key is still in input */}
+          {isAQKey && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-start gap-2 leading-relaxed">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">Notice: AQ Key Detected</span>
+                <span>The text in the box starts with 'AQ...'. Please delete it, paste your new key starting with 'AIzaSy...', and click Save Key.</span>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                Google Gemini API Key
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Google Gemini API Key
+                </label>
+                {apiKey && (
+                  <button
+                    type="button"
+                    onClick={() => setApiKey('')}
+                    className="text-[11px] text-red-600 hover:underline font-semibold"
+                  >
+                    Clear Input Box
+                  </button>
+                )}
+              </div>
+
               <div className="relative">
                 <input
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="AIzaSy..."
+                  placeholder="Paste AIzaSy... key here"
                   className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowKey(!showKey)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
