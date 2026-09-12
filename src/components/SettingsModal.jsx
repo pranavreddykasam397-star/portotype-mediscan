@@ -13,10 +13,11 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
 
   const handleSave = (e) => {
     e.preventDefault();
-    saveStoredApiKey(apiKey);
+    const trimmed = apiKey.trim();
+    saveStoredApiKey(trimmed);
     setSaveSuccess(true);
     setTestError(null);
-    onKeyUpdated(apiKey.trim());
+    onKeyUpdated(trimmed);
 
     setTimeout(() => {
       setSaveSuccess(false);
@@ -31,38 +32,58 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
   };
 
   const handleTestConnection = async () => {
-    if (!apiKey.trim()) {
+    const trimmed = apiKey.trim();
+    if (!trimmed) {
       setTestError('Please enter an API key to test.');
+      return;
+    }
+
+    if (!trimmed.startsWith('AIzaSy')) {
+      setTestError('Invalid Key Format: Google AI Studio API keys start with "AIzaSy...". Please get a free key from aistudio.google.com.');
+      setIsTesting(false);
       return;
     }
 
     setIsTesting(true);
     setTestError(null);
 
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`;
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Respond with OK' }] }]
-        })
-      });
+    const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+    let success = false;
+    let lastErr = null;
 
-      if (res.ok) {
-        saveStoredApiKey(apiKey);
-        onKeyUpdated(apiKey.trim());
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2000);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setTestError(err?.error?.message || `API error code ${res.status}`);
+    for (const m of modelsToTry) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${trimmed}`;
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'Respond with OK' }] }]
+          })
+        });
+
+        if (res.ok) {
+          success = true;
+          break;
+        }
+
+        const errData = await res.json().catch(() => ({}));
+        lastErr = errData?.error?.message || `API error code ${res.status}`;
+      } catch (err) {
+        lastErr = err.message;
       }
-    } catch (err) {
-      setTestError(err.message || 'Connection test failed.');
-    } finally {
-      setIsTesting(false);
     }
+
+    if (success) {
+      saveStoredApiKey(trimmed);
+      onKeyUpdated(trimmed);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } else {
+      setTestError(lastErr || 'Connection test failed across available Gemini endpoints.');
+    }
+
+    setIsTesting(false);
   };
 
   const isConfigured = !!getStoredApiKey();
@@ -128,13 +149,13 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
                 </button>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                Key is persisted securely in your browser's <code className="text-slate-600 bg-slate-100 px-1 rounded">localStorage</code>.
+                Key is stored securely in your browser's <code className="text-slate-600 bg-slate-100 px-1 rounded">localStorage</code>.
               </p>
             </div>
 
             {testError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs flex items-start gap-2 leading-relaxed">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                 <span>{testError}</span>
               </div>
             )}
@@ -179,7 +200,7 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl border border-red-200 transition"
+                  className="p-2.5 text-red-600 hover:bg-red-50 rounded-xl border border-red-200 transition cursor-pointer"
                   title="Clear saved API key"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -195,12 +216,12 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
               Get an instant API key from Google AI Studio with generous free-tier quotas for Gemini 1.5 Flash.
             </p>
             <a
-              href="https://aistudio.google.com/"
+              href="https://aistudio.google.com/app/apikey"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-teal-700 hover:underline font-semibold text-[11px] pt-1"
             >
-              <span>Visit Google AI Studio</span>
+              <span>Get Key on Google AI Studio (aistudio.google.com)</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
