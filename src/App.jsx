@@ -27,6 +27,40 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [apiKey, setApiKey] = useState(getStoredApiKey());
 
+  // Shared Geolocation State (Default: Boston MA)
+  const [coords, setCoords] = useState({ lat: 42.3601, lng: -71.0589 });
+  const [locationStatus, setLocationStatus] = useState('Boston, MA (42.3601° N, 71.0589° W)');
+  const [isLocating, setIsLocating] = useState(false);
+
+  // Acquire Live GPS Location
+  const handleAcquireLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus('Boston, MA (Geolocation Unsupported)');
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationStatus('Acquiring GPS signal...');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const accuracy = Math.round(position.coords.accuracy);
+
+        setCoords({ lat: latitude, lng: longitude });
+        setLocationStatus(`Location acquired: ${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° W (±${accuracy}m accuracy)`);
+        setIsLocating(false);
+      },
+      (error) => {
+        console.warn('Geolocation error:', error.message);
+        setLocationStatus('Boston, MA (42.3601° N, 71.0589° W)');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   // Toggle/Log medication adherence
   const handleLogMedication = (medId) => {
     setMedications((prev) =>
@@ -134,6 +168,12 @@ export default function App() {
               userProfile={userProfile}
               streakDays={streakDays}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              nearbyFacilities={nearbyFacilities}
+              coords={coords}
+              locationStatus={locationStatus}
+              isLocating={isLocating}
+              onAcquireLocation={handleAcquireLocation}
+              setActiveTab={setActiveTab}
             />
           )}
 
@@ -141,6 +181,10 @@ export default function App() {
             <CareNavigation
               nearbyFacilities={nearbyFacilities}
               urgentMode={urgentMode}
+              coords={coords}
+              locationStatus={locationStatus}
+              isLocating={isLocating}
+              onAcquireLocation={handleAcquireLocation}
             />
           )}
         </main>

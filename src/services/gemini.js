@@ -124,13 +124,26 @@ Respond strictly with a valid raw JSON object. Do not include markdown code bloc
 }
 
 /**
- * Call Gemini REST API for AI Health Coach chat interaction.
+ * Call Gemini REST API for AI Health Coach chat interaction with location awareness.
  */
-export async function sendGeminiCoachMessage({ userMessage, userProfile, medications, streakDays, chatHistory }) {
+export async function sendGeminiCoachMessage({ 
+  userMessage, 
+  userProfile, 
+  medications, 
+  streakDays, 
+  chatHistory,
+  nearbyFacilities,
+  coords,
+  locationStatus 
+}) {
   const apiKey = getStoredApiKey();
   if (!apiKey) {
     throw new Error('No Gemini API Key configured.');
   }
+
+  const facilitiesContext = nearbyFacilities && nearbyFacilities.length > 0
+    ? nearbyFacilities.map(f => `- ${f.name} (${f.type}): ${f.distanceMiles} mi away, ${f.address}, Phone: ${f.phone}, Est Wait: ${f.estimatedWaitTimeMin === 0 ? 'No Wait (By Appt)' : `${f.estimatedWaitTimeMin} mins`}${f.is24x7 ? ' [24/7 ER]' : ''}`).join('\n')
+    : 'No facilities registered.';
 
   const systemInstructionText = `You are MediScan's AI Health Coach. You know the patient (Maya Lin, 28F, Atopic Diathesis, taking Hydrocortisone 1% and Cetirizine 10mg, ragweed allergy). Be empathetic, clinically grounded, concise, and reference their medication adherence and streak (${streakDays} days).
 
@@ -139,13 +152,25 @@ Patient Profile & Telemetry:
 - Allergies: ${userProfile.knownAllergies.join(', ')}
 - Chronic Conditions: ${userProfile.chronicConditions.join(', ')}
 - Active Regimen: ${medications.map(m => `${m.name} (${m.adherenceStatus})`).join('; ')}
-- Daily Streak: ${streakDays} consecutive days`;
+- Daily Streak: ${streakDays} consecutive days
+
+Patient Live Location & Care Directory:
+- Current Location: ${locationStatus || 'Boston, MA'}
+- Coordinates: ${coords ? `${coords.lat.toFixed(4)}° N, ${coords.lng.toFixed(4)}° W` : '42.3601° N, 71.0589° W'}
+- Nearby Care Facilities in Directory:
+${facilitiesContext}
+
+CRITICAL LOCATION & CARE INSTRUCTIONS:
+If the user asks about nearby healthcare, hospitals, urgent care, dermatology clinics, or emergency departments:
+1. Acknowledge their current location (${locationStatus || 'Boston, MA'}).
+2. Recommend the most relevant nearby facility from their care directory with distance in miles, estimated wait time, phone number, and address.
+3. Clearly explain when to choose Urgent Care vs 24/7 Hospital ER vs Dermatology Clinic based on their reported symptoms.
+4. Direct them to open the "Care Navigation" tab for live turn-by-turn Google Maps directions.`;
 
   // Build conversational turns history
   const contents = [];
 
   if (chatHistory && chatHistory.messages && chatHistory.messages.length > 0) {
-    // Include up to last 6 messages for context
     const recentMessages = chatHistory.messages.slice(-6);
     recentMessages.forEach((msg) => {
       contents.push({

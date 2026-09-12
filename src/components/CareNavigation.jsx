@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   MapPin, 
   Phone, 
@@ -18,46 +18,19 @@ import {
 } from 'lucide-react';
 import DirectionsModal from './DirectionsModal';
 
-export default function CareNavigation({ nearbyFacilities, urgentMode }) {
+export default function CareNavigation({ 
+  nearbyFacilities, 
+  urgentMode, 
+  coords, 
+  locationStatus, 
+  isLocating, 
+  onAcquireLocation 
+}) {
   const [radiusFilter, setRadiusFilter] = useState(5); // max miles
   const [typeFilter, setTypeFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeModalFacility, setActiveModalFacility] = useState(null);
   const [callingFacility, setCallingFacility] = useState(null);
-
-  // Live Geolocation State (Default: Boston MA)
-  const [coords, setCoords] = useState({ lat: 42.3601, lng: -71.0589 });
-  const [locationStatus, setLocationStatus] = useState('Default (Boston, MA)');
-  const [isLocating, setIsLocating] = useState(false);
-
-  // Request Browser Geolocation
-  const handleAcquireLocation = () => {
-    if (!navigator.geolocation) {
-      setLocationStatus('Geolocation unsupported by browser. Using Boston fallback.');
-      return;
-    }
-
-    setIsLocating(true);
-    setLocationStatus('Acquiring GPS signal...');
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
-        const accuracy = Math.round(position.coords.accuracy);
-
-        setCoords({ lat: latitude, lng: longitude });
-        setLocationStatus(`Location acquired: ${latitude.toFixed(4)}° N, ${longitude.toFixed(4)}° W (±${accuracy}m accuracy)`);
-        setIsLocating(false);
-      },
-      (error) => {
-        console.warn('Geolocation error:', error.message);
-        setLocationStatus('Location access denied. Using Boston, MA default.');
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  };
 
   // Filter facilities
   const filteredFacilities = nearbyFacilities.filter((fac) => {
@@ -107,7 +80,7 @@ export default function CareNavigation({ nearbyFacilities, urgentMode }) {
           </div>
 
           <button
-            onClick={handleAcquireLocation}
+            onClick={onAcquireLocation}
             disabled={isLocating}
             className="px-3 py-1.5 bg-white hover:bg-slate-100 text-teal-800 border border-teal-200 rounded-lg font-bold text-xs transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
           >
