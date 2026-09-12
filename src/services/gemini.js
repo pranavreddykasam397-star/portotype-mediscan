@@ -16,8 +16,8 @@ export function clearStoredApiKey() {
   localStorage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
 }
 
-// List of fallback model names to try for max compatibility
-const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+// List of Gemini model names to try, prioritizing active gemini-2.5-flash
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
 
 /**
  * Call Gemini REST API with model fallback.
@@ -41,13 +41,12 @@ async function callGeminiApi(payload, apiKey) {
       const errData = await res.json().catch(() => ({}));
       lastError = errData?.error?.message || `Status ${res.status}`;
 
-      // If key itself is invalid (status 400 with API_KEY_INVALID), don't keep trying other models
-      if (res.status === 400 && lastError.toLowerCase().includes('key')) {
-        throw new Error(`Invalid API Key: ${lastError}`);
+      if (res.status === 401 || (res.status === 400 && lastError.toLowerCase().includes('key'))) {
+        throw new Error(`Authentication Error: ${lastError}`);
       }
     } catch (err) {
       lastError = err.message;
-      if (err.message.includes('Invalid API Key')) {
+      if (err.message.includes('Authentication Error')) {
         throw err;
       }
     }

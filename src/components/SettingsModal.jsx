@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Key, X, ShieldCheck, Sparkles, Check, Trash2, Eye, EyeOff, AlertCircle, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Key, X, ShieldCheck, Sparkles, Check, Trash2, Eye, EyeOff, AlertCircle, ExternalLink } from 'lucide-react';
 import { getStoredApiKey, saveStoredApiKey, clearStoredApiKey } from '../services/gemini';
 
 export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
@@ -38,16 +38,10 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
       return;
     }
 
-    if (trimmed.startsWith('AQ')) {
-      setTestError('Invalid Key Type: This key starts with "AQ..." (Google Cloud Auth Token). Please paste your key starting with "AIzaSy..." from Google AI Studio.');
-      setIsTesting(false);
-      return;
-    }
-
     setIsTesting(true);
     setTestError(null);
 
-    const modelsToTry = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
     let success = false;
     let lastErr = null;
 
@@ -86,8 +80,7 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
     setIsTesting(false);
   };
 
-  const isConfigured = !!getStoredApiKey() && !getStoredApiKey().startsWith('AQ');
-  const isAQKey = apiKey.trim().startsWith('AQ');
+  const isConfigured = !!getStoredApiKey();
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -121,23 +114,12 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
           }`}>
             <div className="flex items-center gap-2 font-medium">
               <ShieldCheck className={`w-4 h-4 ${isConfigured ? 'text-emerald-600' : 'text-amber-600'}`} />
-              <span>{isConfigured ? 'Gemini 1.5 Flash Connected' : 'Using Cached Baseline Engine'}</span>
+              <span>{isConfigured ? 'Gemini 2.5 Flash Connected' : 'Using Cached Baseline Engine'}</span>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white border border-current">
               {isConfigured ? 'LIVE AI ACTIVE' : 'FALLBACK MODE'}
             </span>
           </div>
-
-          {/* Warning Banner if old AQ key is still in input */}
-          {isAQKey && (
-            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-start gap-2 leading-relaxed">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-bold block">Notice: AQ Key Detected</span>
-                <span>The text in the box starts with 'AQ...'. Please delete it, paste your new key starting with 'AIzaSy...', and click Save Key.</span>
-              </div>
-            </div>
-          )}
 
           <form onSubmit={handleSave} className="space-y-4">
             <div>
@@ -161,7 +143,7 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste AIzaSy... key here"
+                  placeholder="Paste Gemini API key here..."
                   className="w-full pl-3 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
                 />
                 <button
@@ -237,7 +219,7 @@ export default function SettingsModal({ isOpen, onClose, onKeyUpdated }) {
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
             <span className="font-bold text-slate-800 block">Need a free Gemini API Key?</span>
             <p className="text-[11px] text-slate-500">
-              Get an instant API key from Google AI Studio with generous free-tier quotas for Gemini 1.5 Flash.
+              Get an instant API key from Google AI Studio with generous free-tier quotas for Gemini 2.5 Flash.
             </p>
             <a
               href="https://aistudio.google.com/app/apikey"
