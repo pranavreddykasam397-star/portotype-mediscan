@@ -16,16 +16,54 @@ export function clearStoredApiKey() {
   localStorage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
 }
 
+// List of fallback model names to try for max compatibility
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash'];
+
 /**
- * Call Gemini 1.5 Flash REST API for multimodal diagnostic scan analysis.
+ * Call Gemini REST API with model fallback.
+ */
+async function callGeminiApi(payload, apiKey) {
+  let lastError = null;
+
+  for (const model of GEMINI_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        return await res.json();
+      }
+
+      const errData = await res.json().catch(() => ({}));
+      lastError = errData?.error?.message || `Status ${res.status}`;
+
+      // If key itself is invalid (status 400 with API_KEY_INVALID), don't keep trying other models
+      if (res.status === 400 && lastError.toLowerCase().includes('key')) {
+        throw new Error(`Invalid API Key: ${lastError}`);
+      }
+    } catch (err) {
+      lastError = err.message;
+      if (err.message.includes('Invalid API Key')) {
+        throw err;
+      }
+    }
+  }
+
+  throw new Error(lastError || 'Gemini API call failed across available models.');
+}
+
+/**
+ * Call Gemini REST API for multimodal diagnostic scan analysis.
  */
 export async function runGeminiDiagnosticAnalysis({ textDescription, duration, severityScore, imageBase64 }) {
   const apiKey = getStoredApiKey();
   if (!apiKey) {
     throw new Error('No Gemini API Key found in settings.');
   }
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const promptText = `You are an AI diagnostic triage assistant. Given the symptom description, duration, and optional image, return a strictly valid JSON object matching this schema:
 {
@@ -50,7 +88,6 @@ Respond strictly with a valid raw JSON object. Do not include markdown code bloc
   const contentsParts = [];
 
   if (imageBase64) {
-    // Clean base64 prefix if present (e.g., data:image/jpeg;base64,...)
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
     contentsParts.push({
       inline_data: {
@@ -74,21 +111,9 @@ Respond strictly with a valid raw JSON object. Do not include markdown code bloc
     }
   };
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Gemini API call failed with status ${res.status}`);
-  }
-
-  const data = await res.json();
+  const data = await callGeminiApi(payload, apiKey);
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   
-  // Clean markdown fences if any
   const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
   const parsed = JSON.parse(cleanedText);
 
@@ -96,15 +121,13 @@ Respond strictly with a valid raw JSON object. Do not include markdown code bloc
 }
 
 /**
- * Call Gemini 1.5 Flash REST API for AI Health Coach chat interaction.
+ * Call Gemini REST API for AI Health Coach chat interaction.
  */
 export async function sendGeminiCoachMessage({ userMessage, userProfile, medications, streakDays, chatHistory }) {
   const apiKey = getStoredApiKey();
   if (!apiKey) {
     throw new Error('No Gemini API Key configured.');
   }
-
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const systemInstruction = `You are MediScan's AI Health Coach. You know the patient (Maya Lin, 28F, Atopic Diathesis, taking Hydrocortisone 1% and Cetirizine 10mg, ragweed allergy). Be empathetic, clinically grounded, concise, and reference their medication adherence and streak (${streakDays} days).
 
@@ -115,14 +138,12 @@ Patient Context:
 - Active Medications: ${medications.map(m => `${m.name} (${m.adherenceStatus})`).join('; ')}
 - Streak: ${streakDays} consecutive check-in days`;
 
-  // Format previous conversation history
-  const contents = [];
-
-  // Add system instruction as initial context
-  contents.push({
-    role: 'user',
-    parts: [{ text: `System Context:\n${systemInstruction}\n\nUser Question: ${userMessage}` }]
-  });
+  const contents = [
+    {
+      role: 'user',
+      parts: [{ text: `System Context:\n${systemInstruction}\n\nUser Question: ${userMessage}` }]
+    }
+  ];
 
   const payload = {
     contents: contents,
@@ -132,18 +153,7 @@ Patient Context:
     }
   };
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `Gemini API call failed with status ${res.status}`);
-  }
-
-  const data = await res.json();
+  const data = await callGeminiApi(payload, apiKey);
   const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   return replyText.trim();
 }
