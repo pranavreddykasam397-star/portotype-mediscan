@@ -16,7 +16,7 @@ export function clearStoredApiKey() {
   localStorage.removeItem(GEMINI_API_KEY_STORAGE_KEY);
 }
 
-// List of Gemini model names to try, prioritizing active gemini-2.5-flash
+// Active Gemini model prioritizing gemini-2.5-flash
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
 
 /**
@@ -99,6 +99,9 @@ Respond strictly with a valid raw JSON object. Do not include markdown code bloc
   contentsParts.push({ text: promptText });
 
   const payload = {
+    systemInstruction: {
+      parts: [{ text: "You are MediScan AI diagnostic assistant. Output strictly valid JSON." }]
+    },
     contents: [
       {
         parts: contentsParts
@@ -106,6 +109,7 @@ Respond strictly with a valid raw JSON object. Do not include markdown code bloc
     ],
     generationConfig: {
       temperature: 0.2,
+      maxOutputTokens: 1000,
       responseMimeType: "application/json"
     }
   };
@@ -128,27 +132,43 @@ export async function sendGeminiCoachMessage({ userMessage, userProfile, medicat
     throw new Error('No Gemini API Key configured.');
   }
 
-  const systemInstruction = `You are MediScan's AI Health Coach. You know the patient (Maya Lin, 28F, Atopic Diathesis, taking Hydrocortisone 1% and Cetirizine 10mg, ragweed allergy). Be empathetic, clinically grounded, concise, and reference their medication adherence and streak (${streakDays} days).
+  const systemInstructionText = `You are MediScan's AI Health Coach. You know the patient (Maya Lin, 28F, Atopic Diathesis, taking Hydrocortisone 1% and Cetirizine 10mg, ragweed allergy). Be empathetic, clinically grounded, concise, and reference their medication adherence and streak (${streakDays} days).
 
-Patient Context:
+Patient Profile & Telemetry:
 - Name: ${userProfile.name} (${userProfile.age}${userProfile.biologicalSex[0]})
 - Allergies: ${userProfile.knownAllergies.join(', ')}
-- Conditions: ${userProfile.chronicConditions.join(', ')}
-- Active Medications: ${medications.map(m => `${m.name} (${m.adherenceStatus})`).join('; ')}
-- Streak: ${streakDays} consecutive check-in days`;
+- Chronic Conditions: ${userProfile.chronicConditions.join(', ')}
+- Active Regimen: ${medications.map(m => `${m.name} (${m.adherenceStatus})`).join('; ')}
+- Daily Streak: ${streakDays} consecutive days`;
 
-  const contents = [
-    {
-      role: 'user',
-      parts: [{ text: `System Context:\n${systemInstruction}\n\nUser Question: ${userMessage}` }]
-    }
-  ];
+  // Build conversational turns history
+  const contents = [];
+
+  if (chatHistory && chatHistory.messages && chatHistory.messages.length > 0) {
+    // Include up to last 6 messages for context
+    const recentMessages = chatHistory.messages.slice(-6);
+    recentMessages.forEach((msg) => {
+      contents.push({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      });
+    });
+  }
+
+  // Ensure current user message is appended
+  contents.push({
+    role: 'user',
+    parts: [{ text: userMessage }]
+  });
 
   const payload = {
+    systemInstruction: {
+      parts: [{ text: systemInstructionText }]
+    },
     contents: contents,
     generationConfig: {
       temperature: 0.7,
-      maxOutputTokens: 300
+      maxOutputTokens: 800
     }
   };
 
